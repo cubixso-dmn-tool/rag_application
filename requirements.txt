@@ -1,0 +1,11 @@
+langchain-openai
+langchain
+langchain-community
+faiss-cpu
+tqdm
+python-dotenv
+PyPDF2
+nltk
+numpy
+scikit-learn
+pytest
