@@ -5,13 +5,15 @@ from langchain_community.vectorstores import FAISS #type:ignore
 from langchain_openai import AzureOpenAIEmbeddings #type:ignore
 from utils import chunk_text_sentence_based
 from dotenv import load_dotenv #type:ignore
+
 load_dotenv()
+
 class Ingestor:
     def __init__(self):
         self.embeddings = AzureOpenAIEmbeddings(
-    azure_deployment="text-embedding-3-large",
-    openai_api_version="2024-12-01-preview"
-)
+            azure_deployment="text-embedding-3-large",
+            openai_api_version="2024-12-01-preview"
+        )
         self.index = None
         self.documents = []
 
@@ -27,6 +29,16 @@ class Ingestor:
         chunks = chunk_text_sentence_based(text, chunk_size=chunk_size, overlap=overlap)
         for chunk in chunks:
             self.documents.append(Document(page_content=chunk, metadata={**(meta or {}), 'source': path}))
+
+    def ingest_folder(self, folder_path: str):
+        for file_name in os.listdir(folder_path):
+            file_path = os.path.join(folder_path, file_name)
+            if os.path.isfile(file_path):
+                ext = os.path.splitext(file_name)[1].lower()
+                if ext == ".pdf":
+                    self.ingest_pdf(file_path, meta={'type': 'policy'})
+                elif ext == ".txt":
+                    self.ingest_txt(file_path)
 
     def build_index(self):
         texts = [d.page_content for d in self.documents]
