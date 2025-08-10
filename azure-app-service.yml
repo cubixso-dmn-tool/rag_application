@@ -1,0 +1,54 @@
+# Azure App Service deployment configuration
+# Use this with GitHub Actions or Azure DevOps
+
+parameters:
+  subscriptionId: 'your-subscription-id'
+  resourceGroupName: 'rag-app-rg'
+  webAppName: 'rag-api-webapp'
+  containerRegistryName: 'ragappregistry'
+  imageName: 'rag-api'
+  imageTag: 'latest'
+
+variables:
+  azureSubscription: 'Azure-Service-Connection'
+  registryUrl: '$(containerRegistryName).azurecr.io'
+  imageRepository: '$(imageName)'
+  dockerfilePath: 'Dockerfile'
+
+stages:
+- stage: Build
+  displayName: Build and push
+  jobs:
+  - job: Build
+    displayName: Build
+    pool:
+      vmImage: ubuntu-latest
+    steps:
+    - task: Docker@2
+      displayName: Build and push image
+      inputs:
+        containerRegistry: '$(azureSubscription)'
+        repository: '$(imageRepository)'
+        command: 'buildAndPush'
+        Dockerfile: '$(dockerfilePath)'
+        tags: '$(imageTag)'
+
+- stage: Deploy
+  displayName: Deploy to Azure
+  dependsOn: Build
+  jobs:
+  - deployment: Deploy
+    displayName: Deploy
+    pool:
+      vmImage: ubuntu-latest
+    environment: 'production'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+          - task: AzureWebAppContainer@1
+            displayName: 'Deploy to Azure Web App'
+            inputs:
+              azureSubscription: '$(azureSubscription)'
+              appName: '$(webAppName)'
+              imageName: '$(registryUrl)/$(imageRepository):$(imageTag)'
