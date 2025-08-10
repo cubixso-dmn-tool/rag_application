@@ -1,8 +1,8 @@
 import os
 import asyncio
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import FastAPI, HTTPException, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from dotenv import load_dotenv
@@ -26,6 +26,10 @@ class QueryRequest(BaseModel):
 
 class QueryResponse(BaseModel):
     answer: str
+    message: str
+
+class ChatResponse(BaseModel):
+    response: str
     message: str
 
 class IngestResponse(BaseModel):
@@ -167,6 +171,80 @@ async def reset_ingestor():
     global global_ingestor
     global_ingestor = Ingestor()
     return {"message": "Ingestor has been reset"}
+
+@app.post("/chat")
+async def chat_with_documents(
+    question: str = Form(...),
+    files: List[UploadFile] = File(...)
+):
+    """
+    Process files on-demand and answer questions without storing documents
+    """
+    if not files or len(files) == 0:
+        raise HTTPException(status_code=400, detail="No files provided")
+    
+    if not question.strip():
+        raise HTTPException(status_code=400, detail="No question provided")
+    
+    # Create a temporary ingestor for this request
+    temp_ingestor = Ingestor()
+    temp_files = []
+    
+    try:
+        # Process each uploaded file
+        for file in files:
+            if not file.filename:
+                continue
+                
+            allowed_extensions = {'.pdf', '.txt'}
+            file_ext = os.path.splitext(file.filename)[1].lower()
+            
+            if file_ext not in allowed_extensions:
+                raise HTTPException(
+                    status_code=400, 
+                    detail=f"Unsupported file type: {file_ext}. Allowed: {allowed_extensions}"
+                )
+            
+            # Create temporary file
+            temp_file = tempfile.NamedTemporaryFile(delete=False, suffix=file_ext)
+            temp_files.append(temp_file.name)
+            
+            # Save uploaded content to temp file
+            content = await file.read()
+            temp_file.write(content)
+            temp_file.close()
+            
+            # Ingest the temporary file
+            if file_ext == '.pdf':
+                temp_ingestor.ingest_pdf(temp_file.name, meta={'type': 'temp', 'filename': file.filename})
+            elif file_ext == '.txt':
+                temp_ingestor.ingest_txt(temp_file.name, meta={'type': 'temp', 'filename': file.filename})
+        
+        # Build index for this session
+        temp_ingestor.build_index()
+        
+        # Answer the question
+        if not temp_ingestor.index:
+            raise HTTPException(status_code=500, detail="Failed to build index from uploaded files")
+        
+        answer = answer_question(temp_ingestor, question, k=5)
+        
+        return ChatResponse(
+            response=answer,
+            message="Question answered successfully"
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+    
+    finally:
+        # Clean up temporary files
+        for temp_file_path in temp_files:
+            try:
+                if os.path.exists(temp_file_path):
+                    os.remove(temp_file_path)
+            except Exception as cleanup_error:
+                print(f"Error cleaning up temp file {temp_file_path}: {cleanup_error}")
 
 if __name__ == "__main__":
     import uvicorn
