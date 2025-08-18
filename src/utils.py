@@ -2,7 +2,7 @@ import re
 from typing import List
 from nltk.tokenize import sent_tokenize #type:ignore
 import nltk #type:ignore
-nltk.download('punkt', quiet=True)
+nltk.download('punkt_tab', quiet=True)
 
 def chunk_text_sentence_based(text: str, chunk_size: int = 500, overlap: int = 150) -> List[str]:
     sentences = sent_tokenize(text)

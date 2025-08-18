@@ -23,7 +23,7 @@ class Ingestor:
             text = page.extract_text() or ""
             self.documents.append(Document(page_content=text, metadata={**(meta or {}), 'source': path, 'page': i+1}))
 
-    def ingest_txt(self, path: str, chunk_size: int = 500, overlap: int = 150, meta: dict = None):
+    def ingest_txt(self, path: str, chunk_size: int = 6000, overlap: int = 150, meta: dict = None):
         with open(path, 'r', encoding='utf-8') as f:
             text = f.read()
         chunks = chunk_text_sentence_based(text, chunk_size=chunk_size, overlap=overlap)
